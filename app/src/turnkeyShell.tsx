@@ -60,40 +60,85 @@ function TurnkeyBridge() {
   useEffect(() => {
     const cfg = turnkey;
     if (!cfg) return;
+    const { signMode } = cfg;
+
+    const signIn = async (): Promise<Connection> => {
+      // `handleLogin` only OPENS the modal — it resolves as soon as the page
+      // is pushed, not when the person has authenticated. Everything below
+      // needs a session, so wait for one rather than racing it.
+      if (!latest.current.session) {
+        await latest.current.handleLogin();
+        await waitForSession(() => latest.current.session);
+      }
+
+      const t = latest.current;
+      const address = await tronAddress(t);
+      if (!address) throw new Error("Turnkey did not return a Tron account for this wallet");
+
+      return {
+        kind: "embedded",
+        id: WALLET_ID,
+        name: "Passkey",
+        owner: parseTronAddress(address),
+        signer: turnkeyPermitSigner({
+          api: t.httpClient as unknown as TurnkeySigningApi,
+          address,
+          organizationId: t.session?.organizationId,
+          mode: signMode,
+        }),
+        // Turnkey can sign Tron transactions, but this app never asks it to —
+        // the owner-exit path is a separate tool, not a browser flow.
+        canSignTronTx: false,
+      };
+    };
+
     return registerWallet({
       kind: "embedded",
       id: WALLET_ID,
       name: "Passkey",
       async connect(): Promise<Connection> {
-        // Opens Turnkey's modal when there is no session. On a returning
-        // visitor the session is already there and nothing is shown.
-        const t = latest.current;
-        if (!t.session) await t.handleLogin();
-
-        const organizationId = t.session?.organizationId;
-        const address = await tronAddress(t);
-        if (!address) throw new Error("Turnkey did not return a Tron account for this wallet");
-
-        return {
-          kind: "embedded",
-          id: WALLET_ID,
-          name: "Passkey",
-          owner: parseTronAddress(address),
-          signer: turnkeyPermitSigner({
-            api: t.httpClient as unknown as TurnkeySigningApi,
-            address,
-            organizationId,
-            mode: cfg.signMode,
-          }),
-          // Turnkey can sign Tron transactions, but this app never asks it to
-          // — the owner-exit path is a separate tool, not a browser flow.
-          canSignTronTx: false,
-        };
+        try {
+          return await signIn();
+        } catch (e) {
+          throw new Error(readTurnkeyError(e));
+        }
       },
     });
   }, []);
 
   return null;
+}
+
+/**
+ * Turnkey's errors carry the useful part in `details`, not in `message`.
+ *
+ * A rejected request reads only "invalid request" at the top level, while the
+ * field that was wrong sits in a nested fieldViolations list — so surfacing
+ * `.message` alone tells a user, and whoever they report it to, nothing.
+ */
+function readTurnkeyError(e: unknown): string {
+  const err = e as { message?: string; details?: Array<{ fieldViolations?: Array<{ field?: string; description?: string }> }> };
+  const violations = (err?.details ?? []).flatMap((d) => d.fieldViolations ?? []);
+  const detail = violations.map((v) => [v.field, v.description].filter(Boolean).join(": ")).join("; ");
+  const base = err?.message || "sign-in failed";
+  return detail ? `${base} — ${detail}` : base;
+}
+
+/**
+ * Waits for the person to finish signing in.
+ *
+ * There is no promise to await on: the modal is a page the provider pushes,
+ * and the session appears in context when it closes successfully. Polling it
+ * is the honest way to express "when they are done". Closing the modal without
+ * signing in simply never produces one, so this ends at the deadline with a
+ * message rather than hanging forever.
+ */
+async function waitForSession(get: () => unknown, timeoutMs = 180_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!get()) {
+    if (Date.now() > deadline) throw new Error("sign-in was not completed");
+    await new Promise((r) => setTimeout(r, 200));
+  }
 }
 
 /**
