@@ -1,0 +1,38 @@
+{
+  "name": "@tron-paymaster/app",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Send Tron USDT without holding TRX \u2014 a self-custodial web app on TronPaymaster.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@tron-paymaster/react": "workspace:*",
+    "@tron-paymaster/sdk": "workspace:*",
+    "@tron-paymaster/theme": "workspace:*",
+    "lucide-react": "1.72.0",
+    "qrcode": "1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "viem": "2.57.16"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.5",
+    "@types/qrcode": "1.5.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.1.0",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "vite": "7.2.4",
+    "vitest": "4.1.12",
+    "wrangler": "4.161.0"
+  }
+}

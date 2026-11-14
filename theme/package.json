@@ -1,0 +1,30 @@
+{
+  "name": "@tron-paymaster/theme",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "The TronMaster design system: tokens, button, logo. One set of tokens, so everything built on it looks like one product.",
+  "exports": {
+    "./theme.css": "./theme.css",
+    "./logo.png": "./logo.png",
+    "./button": "./src/button.tsx",
+    "./cn": "./src/cn.ts",
+    "./ui": "./src/ui.tsx"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "tailwindcss": ">=4"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "1.2.4",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.72.0",
+    "tailwind-merge": "3.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "typescript": "5.9.3"
+  }
+}

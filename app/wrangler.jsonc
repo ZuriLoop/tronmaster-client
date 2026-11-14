@@ -1,0 +1,15 @@
+// Static hosting for the app on Cloudflare Workers.
+//
+// Assets-only: there is no server code, and there must not be — the app holds
+// no keys and talks to a relayer the user can change. `main` is therefore
+// omitted, and every unmatched path serves index.html so deep links work.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tronmaster-client",
+  "compatibility_date": "2026-11-12",
+  "assets": {
+    "directory": "./dist/",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": { "enabled": true }
+}

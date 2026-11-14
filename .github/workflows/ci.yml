@@ -1,0 +1,44 @@
+# Typecheck, test and build the client on every push and pull request.
+#
+# Build order is load-bearing: react and app both consume the SDK's build
+# output, so the SDK is built first and react before the app.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a # v4.4.0
+        with:
+          version: 10
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @tron-paymaster/sdk typecheck
+      - run: pnpm --filter @tron-paymaster/sdk test
+      - run: pnpm --filter @tron-paymaster/sdk build
+
+      - run: pnpm --filter @tron-paymaster/react typecheck
+      - run: pnpm --filter @tron-paymaster/react test
+      - run: pnpm --filter @tron-paymaster/react build
+
+      - run: pnpm --filter @tron-paymaster/app typecheck
+      - run: pnpm --filter @tron-paymaster/app test
+      - run: pnpm --filter @tron-paymaster/app build
