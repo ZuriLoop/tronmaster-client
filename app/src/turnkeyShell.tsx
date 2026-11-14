@@ -97,8 +97,7 @@ function TurnkeyBridge() {
 }
 
 /**
- * The account to sign with, creating it if the organization's default wallet
- * does not include one.
+ * The account to sign with, creating it if this sub-organization has none.
  *
  * It must be the Tron-derived account specifically: Turnkey derives Ethereum
  * at m/44'/60' and Tron at m/44'/195', so they are *different keys*, and
@@ -106,16 +105,28 @@ function TurnkeyBridge() {
  * holds nothing.
  */
 async function tronAddress(tk: ReturnType<typeof useTurnkey>): Promise<string | undefined> {
-  const find = (wallets: Awaited<ReturnType<typeof tk.fetchWallets>>) =>
-    wallets.flatMap((w) => w.accounts).find((a) => a.addressFormat === "ADDRESS_FORMAT_TRON")?.address;
+  type Wallets = Awaited<ReturnType<typeof tk.fetchWallets>>;
+  const find = (wallets: Wallets) => wallets.flatMap((w) => w.accounts).find((a) => a.addressFormat === "ADDRESS_FORMAT_TRON")?.address;
+
+  // `fetchWallets` also reports wallets CONNECTED from the browser — an
+  // installed MetaMask shows up here — and those have no Turnkey wallet id to
+  // add an account to. Only a wallet Turnkey itself holds will do, and its id
+  // is a v4 UUID.
+  const held = (wallets: Wallets) => wallets.filter((w) => /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(w.walletId));
 
   let wallets = await tk.fetchWallets();
   const existing = find(wallets);
   if (existing) return existing;
 
-  const walletId = wallets[0]?.walletId;
-  if (!walletId) return undefined;
-  await tk.createWalletAccounts({ walletId, accounts: [TRON_ACCOUNT] });
+  const walletId = held(wallets)[0]?.walletId;
+  if (walletId) {
+    // A wallet exists but was created with Ethereum/Solana accounts only.
+    await tk.createWalletAccounts({ walletId, accounts: [TRON_ACCOUNT] });
+  } else {
+    // A sub-organization with no Turnkey-held wallet at all.
+    await tk.createWallet({ walletName: "tron", accounts: [TRON_ACCOUNT] });
+  }
+
   wallets = await tk.fetchWallets();
   return find(wallets);
 }
