@@ -34,6 +34,24 @@ export const defaultRelayer = env.VITE_TPM_RELAYER ?? "";
 const sponsorshipPolicyId = env.VITE_TPM_SPONSORSHIP_POLICY || undefined;
 const apiKey = env.VITE_TPM_API_KEY || undefined;
 
+/**
+ * Turnkey passkey wallet. Both values are public by design — they identify an
+ * organization and its hosted auth proxy, and neither authorizes anything on
+ * its own. Unset means the Turnkey option simply does not appear.
+ *
+ * `VITE_TURNKEY_SIGN_MODE=digest` makes Turnkey sign the permit digest as
+ * opaque bytes instead of parsing the typed data. Only needed if Turnkey's
+ * EIP-712 encoding ever disagrees with the contract's; the signature is
+ * verified locally either way, so a mismatch fails before anything is sent.
+ */
+export const turnkey = env.VITE_TURNKEY_ORG_ID
+  ? {
+      organizationId: env.VITE_TURNKEY_ORG_ID as string,
+      authProxyConfigId: env.VITE_TURNKEY_AUTH_PROXY_ID as string | undefined,
+      signMode: (env.VITE_TURNKEY_SIGN_MODE === "digest" ? "digest" : "eip712") as "digest" | "eip712",
+    }
+  : undefined;
+
 export const isTestnet = NETWORK !== "mainnet";
 export const faucetUrl = "https://nileex.io/join/getJoinPage";
 export const repoUrl = "https://github.com/ZuriLoop/tronmaster-client";

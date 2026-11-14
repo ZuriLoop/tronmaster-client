@@ -4,7 +4,7 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "Send Tron USDT without holding TRX \u2014 a self-custodial web app on TronPaymaster.",
+  "description": "Send Tron USDT without holding TRX — a self-custodial web app on TronPaymaster.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -17,6 +17,7 @@
     "@tron-paymaster/react": "workspace:*",
     "@tron-paymaster/sdk": "workspace:*",
     "@tron-paymaster/theme": "workspace:*",
+    "@turnkey/react-wallet-kit": "2.8.1",
     "lucide-react": "1.72.0",
     "qrcode": "1.5.4",
     "react": "19.3.1",

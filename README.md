@@ -8,7 +8,7 @@ away: a relayer submits the transaction, pays the network fee, and is repaid in
 USDT out of the transfer itself. You never acquire TRX, and nobody takes
 custody of your money.
 
-**Live on Nile testnet:** https://tron-paymaster-app.prince-c5a.workers.dev
+**Live on Nile testnet:** https://nile.tronmaster.xyz
 
 ## How it works
 

@@ -94,3 +94,61 @@ describe("connect", () => {
     await expect(wallet.connect("evm")).rejects.toThrow(/no EVM wallet found/);
   });
 });
+
+/**
+ * A wallet with no extension to detect. On a machine with nothing installed
+ * this is the only way in, so it has to survive the two places that assumed
+ * exactly two kinds: `connect`, where EVM was the fallthrough rather than a
+ * branch, and `onAccountChange`, where TronLink was.
+ */
+describe("registerWallet", () => {
+  const connection = {
+    kind: "embedded" as const,
+    id: "passkey",
+    name: "Passkey wallet",
+    owner: "0x1111111111111111111111111111111111111111",
+    signer: { address: "0x1111111111111111111111111111111111111111" } as never,
+    canSignTronTx: false,
+  };
+
+  it("appears among the available wallets when no extension exists", () => {
+    wallet.registerWallet({ kind: "embedded", id: "passkey", name: "Passkey wallet", connect: async () => connection });
+    expect(wallet.detectWallets()).toEqual([{ kind: "embedded", id: "passkey", name: "Passkey wallet", icon: undefined }]);
+  });
+
+  it("is listed before the extensions, since it is the fallback that always works", () => {
+    announce(window, "io.metamask", "MetaMask", provider("MetaMask"));
+    wallet.registerWallet({ kind: "embedded", id: "passkey", name: "Passkey wallet", connect: async () => connection });
+    expect(wallet.detectWallets().map((a) => a.id)).toEqual(["passkey", "io.metamask"]);
+  });
+
+  it("connects itself rather than falling through to the EVM path", async () => {
+    let called = 0;
+    const mm = provider("MetaMask");
+    (window as { ethereum?: unknown }).ethereum = mm;
+    wallet.registerWallet({
+      kind: "embedded",
+      id: "passkey",
+      name: "Passkey wallet",
+      connect: async () => {
+        called++;
+        return connection;
+      },
+    });
+    const c = await wallet.connect("embedded", undefined, "passkey");
+    expect(c.name).toBe("Passkey wallet");
+    expect(called).toBe(1);
+    expect(mm.calls).toEqual([]); // the browser wallet was never touched
+  });
+
+  it("does not listen for account changes on someone else's wallet", () => {
+    // Its session belongs to the app, not to a page global — subscribing to
+    // window events would deliver another wallet's events as if they were its.
+    wallet.registerWallet({ kind: "embedded", id: "passkey", name: "Passkey wallet", connect: async () => connection });
+    expect(wallet.onAccountChange("embedded", () => undefined, "passkey")()).toBeUndefined();
+  });
+
+  it("says so plainly when an unregistered kind is asked for", async () => {
+    await expect(wallet.connect("embedded", undefined, "gone")).rejects.toThrow(/no embedded wallet is registered/);
+  });
+});

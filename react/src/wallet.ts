@@ -11,8 +11,11 @@ import { type Eip1193Provider, type EvmNetwork, type PermitSigner, TRON_EVM_NETW
  *   the protocol needs, because Tron and Ethereum share secp256k1 and a
  *   permit is EIP-712 typed data. Such a user can always reach their funds
  *   without us by importing the SAME key into a Tron wallet.
+ * - `embedded`: a wallet with no browser extension at all, where a service
+ *   holds the key and signs on the user's authority (a passkey, say). It
+ *   cannot be detected, so the host app registers it — see `registerWallet`.
  */
-export type WalletKind = "tron" | "evm";
+export type WalletKind = "tron" | "evm" | "embedded";
 
 export interface Connection {
   kind: WalletKind;
@@ -84,10 +87,41 @@ export interface Available {
   icon?: string;
 }
 
+/** A wallet contributed by the host app rather than found in the browser. */
+export interface RegisteredWallet extends Available {
+  connect(): Promise<Connection>;
+}
+
+const registered = new Map<string, RegisteredWallet>();
+
+/**
+ * Adds a wallet that cannot be detected.
+ *
+ * `detectWallets` is a presence probe — it looks for injected globals — so a
+ * wallet that lives behind a service rather than an extension is invisible to
+ * it, and invisible wallets cannot be offered, remembered or reconnected.
+ * Registering one puts it in the same list as the extensions and nothing
+ * downstream needs to know the difference.
+ *
+ * Kept generic on purpose: this package stays free of any particular
+ * provider's SDK, and the host app owns that dependency.
+ *
+ * Returns a function that removes it again.
+ */
+export function registerWallet(wallet: RegisteredWallet): () => void {
+  registered.set(wallet.id, wallet);
+  return () => {
+    registered.delete(wallet.id);
+  };
+}
+
 /** Which wallets this browser actually has — every one of them, by name. */
 export function detectWallets(): Available[] {
   const out: Available[] = [];
   const win = w();
+  // Registered first: on a machine with no extension it is the only way in,
+  // and that is exactly when it must not be buried.
+  for (const r of registered.values()) out.push({ kind: r.kind, id: r.id, name: r.name, icon: r.icon });
   if (win.tronLink || win.tronWeb) out.push({ kind: "tron", id: "tron", name: win.tronLink ? "TronLink" : "Tron wallet" });
   for (const d of announced.values()) {
     out.push({ kind: "evm", id: d.info.rdns, name: d.info.name, icon: d.info.icon });
@@ -112,7 +146,12 @@ function evmProvider(id?: string): { provider: Eip1193Provider; name: string } {
 }
 
 export async function connect(kind: WalletKind, network?: EvmNetwork, id?: string): Promise<Connection> {
-  return kind === "tron" ? connectTron() : connectEvm(network, id);
+  // By id first: a registered wallet knows how to connect itself.
+  const r = id ? registered.get(id) : undefined;
+  if (r) return r.connect();
+  if (kind === "tron") return connectTron();
+  if (kind === "evm") return connectEvm(network, id);
+  throw new Error(`no ${kind} wallet is registered — reload the page and pick one again`);
 }
 
 async function connectTron(): Promise<Connection> {
@@ -155,6 +194,10 @@ async function connectEvm(network?: EvmNetwork, id?: string): Promise<Connection
 /** Fires when the connected account changes, so the UI can re-derive everything. */
 export function onAccountChange(kind: WalletKind, cb: () => void, id?: string): () => void {
   const win = w();
+  // A registered wallet has no account to change behind our back: its session
+  // is the app's own. Listening on the page's wallet globals would only
+  // deliver another wallet's events.
+  if (id && registered.has(id)) return () => undefined;
   if (kind === "evm") {
     // Listen on the provider that was actually connected, not on whatever
     // currently owns window.ethereum.

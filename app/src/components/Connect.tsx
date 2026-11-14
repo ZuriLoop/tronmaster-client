@@ -41,6 +41,14 @@ export function Connect({ wallet }: { wallet: WalletState }) {
       <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
         Your wallet holds the key. This page never sees it and cannot move your funds.
       </p>
+      {/* An embedded wallet is the one option that works on a machine with
+          nothing installed, so it earns a sentence rather than only a button. */}
+      {available.some((a) => a.kind === "embedded") && (
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          No wallet? <strong className="text-foreground">Passkey</strong> makes one in a few seconds — your
+          device authorises it, and there is no extension to install and no phrase to write down.
+        </p>
+      )}
       <div className="mt-5 grid gap-2.5">
         {available.map((a) => (
           <Button

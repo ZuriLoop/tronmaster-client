@@ -48,6 +48,23 @@ export interface TurnkeySignerOptions {
   address: string;
   /** Sub-organization id, when signing for an end user's sub-org. */
   organizationId?: string;
+  /**
+   * How a permit reaches Turnkey.
+   *
+   * - `eip712` (default) sends the typed data and lets Turnkey compute the
+   *   digest. Turnkey then *parses* the permit, so a policy can pin its
+   *   fields — `eth.eip_712.message['token']`, `['to']`, `['relayer']`. This
+   *   is the reason to prefer it.
+   * - `digest` hashes locally and sends 32 opaque bytes. Byte-identical to a
+   *   local key by construction, so it cannot disagree with the contract —
+   *   but Turnkey cannot see what it is signing, and a field-level policy has
+   *   nothing to match on.
+   *
+   * Either way `signPermit` verifies the signature recovers to the expected
+   * signer before anything is submitted, so a mismatch fails locally and
+   * loudly rather than on-chain.
+   */
+  mode?: "eip712" | "digest";
 }
 
 /**
@@ -77,22 +94,43 @@ export function turnkeyTronSigner(o: TurnkeySignerOptions): TronSigner {
  */
 export function turnkeyPermitSigner(o: TurnkeySignerOptions): PermitSigner {
   const signWith = toBase58(o.address);
+  const address = parseTronAddress(o.address) as TronAddress;
+
+  // Pad defensively: ~1 in 128 signatures has a short r or s, and the 65-byte
+  // concatenation must stay aligned.
+  const word = (x: string) => x.replace(/^0x/, "").padStart(64, "0");
+  const vByte = (x: string) => x.replace(/^0x/, "").padStart(2, "0");
+  const join = (sig: { r: string; s: string; v: string }) => `0x${word(sig.r)}${word(sig.s)}${vByte(sig.v)}` as Hex;
+
+  if (o.mode === "digest") {
+    return {
+      address,
+      async signDigest(digest: Hex) {
+        return join(
+          await o.api.signRawPayload({
+            signWith,
+            payload: digest,
+            encoding: "PAYLOAD_ENCODING_HEXADECIMAL",
+            hashFunction: "HASH_FUNCTION_NO_OP",
+            organizationId: o.organizationId,
+          }),
+        );
+      },
+    };
+  }
+
   return {
-    address: parseTronAddress(o.address) as TronAddress,
+    address,
     async signTypedData(typedData: ReturnType<typeof getPermitTypedData>) {
-      const { r, s, v } = await o.api.signRawPayload({
-        signWith,
-        payload: JSON.stringify(typedData),
-        encoding: "PAYLOAD_ENCODING_EIP712",
-        hashFunction: "HASH_FUNCTION_NO_OP",
-        organizationId: o.organizationId,
-      });
-      // Pad defensively: ~1 in 128 signatures has a short r or s, and the
-      // 65-byte concatenation must stay aligned. (The SDK still verifies
-      // recovery before anything is submitted.)
-      const word = (x: string) => x.replace(/^0x/, "").padStart(64, "0");
-      const vByte = (x: string) => x.replace(/^0x/, "").padStart(2, "0");
-      return `0x${word(r)}${word(s)}${vByte(v)}` as Hex;
+      return join(
+        await o.api.signRawPayload({
+          signWith,
+          payload: JSON.stringify(typedData),
+          encoding: "PAYLOAD_ENCODING_EIP712",
+          hashFunction: "HASH_FUNCTION_NO_OP",
+          organizationId: o.organizationId,
+        }),
+      );
     },
   };
 }
