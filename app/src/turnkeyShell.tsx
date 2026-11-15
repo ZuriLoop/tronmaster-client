@@ -62,13 +62,19 @@ function TurnkeyBridge() {
     if (!cfg) return;
     const { signMode } = cfg;
 
-    const signIn = async (): Promise<Connection> => {
-      // `handleLogin` only OPENS the modal — it resolves as soon as the page
-      // is pushed, not when the person has authenticated. Everything below
-      // needs a session, so wait for one rather than racing it.
+    const signIn = async (silent: boolean): Promise<Connection> => {
       if (!latest.current.session) {
-        await latest.current.handleLogin();
-        await waitForSession(() => latest.current.session);
+        if (silent) {
+          // Restoring, not asking. Turnkey rehydrates its session from storage
+          // a moment after mount, so give it that moment — but never a dialog.
+          await waitForSession(() => latest.current.session, 8_000);
+        } else {
+          // `handleLogin` only OPENS the modal — it resolves as soon as the
+          // page is pushed, not when the person has authenticated. Everything
+          // below needs a session, so wait for one rather than racing it.
+          await latest.current.handleLogin();
+          await waitForSession(() => latest.current.session);
+        }
       }
 
       const t = latest.current;
@@ -96,9 +102,9 @@ function TurnkeyBridge() {
       kind: "embedded",
       id: WALLET_ID,
       name: "Passkey",
-      async connect(): Promise<Connection> {
+      async connect(opts): Promise<Connection> {
         try {
-          return await signIn();
+          return await signIn(opts?.silent === true);
         } catch (e) {
           throw new Error(readTurnkeyError(e));
         }

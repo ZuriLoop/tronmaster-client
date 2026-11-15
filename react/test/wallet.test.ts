@@ -152,3 +152,53 @@ describe("registerWallet", () => {
     await expect(wallet.connect("embedded", undefined, "gone")).rejects.toThrow(/no embedded wallet is registered/);
   });
 });
+
+/**
+ * Restoring a session is not the same as asking for one. A wallet that can
+ * prompt — a passkey dialog, an extension popup — must stay quiet when the
+ * page is merely reconnecting, or every page load interrupts someone who only
+ * opened a tab.
+ */
+describe("silent reconnect", () => {
+  const connection = {
+    kind: "embedded" as const,
+    id: "passkey",
+    name: "Passkey wallet",
+    owner: "0x1111111111111111111111111111111111111111",
+    signer: { address: "0x1111111111111111111111111111111111111111" } as never,
+    canSignTronTx: false,
+  };
+
+  it("tells the wallet when it is restoring rather than being asked", async () => {
+    const seen: Array<boolean | undefined> = [];
+    wallet.registerWallet({
+      kind: "embedded",
+      id: "passkey",
+      name: "Passkey wallet",
+      connect: async (opts) => {
+        seen.push(opts?.silent);
+        return connection;
+      },
+    });
+
+    await wallet.connect("embedded", undefined, "passkey", { silent: true });
+    await wallet.connect("embedded", undefined, "passkey");
+    expect(seen).toEqual([true, undefined]);
+  });
+
+  it("lets a wallet refuse to reconnect without prompting", async () => {
+    // No stored session and no dialog allowed: failing quietly is correct,
+    // and the UI simply shows the connect screen.
+    wallet.registerWallet({
+      kind: "embedded",
+      id: "passkey",
+      name: "Passkey wallet",
+      connect: async (opts) => {
+        if (opts?.silent) throw new Error("no session to restore");
+        return connection;
+      },
+    });
+    await expect(wallet.connect("embedded", undefined, "passkey", { silent: true })).rejects.toThrow(/no session/);
+    await expect(wallet.connect("embedded", undefined, "passkey")).resolves.toMatchObject({ name: "Passkey wallet" });
+  });
+});

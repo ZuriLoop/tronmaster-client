@@ -62,7 +62,9 @@ export function useWallet(): WalletState {
     if (!remembered) return;
     const [kind, id] = remembered.split(":") as [WalletKind, string | undefined];
     if (!available.some((a) => a.kind === kind && (!id || a.id === id))) return;
-    connect(kind, network, id)
+    // Silent: restoring a session must never put a dialog in front of someone
+    // who only opened the page.
+    connect(kind, network, id, { silent: true })
       .then(setConnection)
       .catch(() => undefined); // a locked wallet is not an error until the user asks
   }, [available, connection, connecting, network]);

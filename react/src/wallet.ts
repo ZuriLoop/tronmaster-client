@@ -87,9 +87,19 @@ export interface Available {
   icon?: string;
 }
 
+/** How a connection was asked for. */
+export interface ConnectOptions {
+  /**
+   * True when the page is restoring a previous session rather than acting on
+   * a click. A wallet must not prompt in this mode: a sign-in dialog that
+   * appears on every page load, unasked, is worse than not reconnecting.
+   */
+  silent?: boolean;
+}
+
 /** A wallet contributed by the host app rather than found in the browser. */
 export interface RegisteredWallet extends Available {
-  connect(): Promise<Connection>;
+  connect(opts?: ConnectOptions): Promise<Connection>;
 }
 
 const registered = new Map<string, RegisteredWallet>();
@@ -145,10 +155,10 @@ function evmProvider(id?: string): { provider: Eip1193Provider; name: string } {
   return { provider: eth, name: eth.isMetaMask ? "MetaMask" : eth.isRabby ? "Rabby" : "Browser wallet" };
 }
 
-export async function connect(kind: WalletKind, network?: EvmNetwork, id?: string): Promise<Connection> {
+export async function connect(kind: WalletKind, network?: EvmNetwork, id?: string, opts?: ConnectOptions): Promise<Connection> {
   // By id first: a registered wallet knows how to connect itself.
   const r = id ? registered.get(id) : undefined;
-  if (r) return r.connect();
+  if (r) return r.connect(opts);
   if (kind === "tron") return connectTron();
   if (kind === "evm") return connectEvm(network, id);
   throw new Error(`no ${kind} wallet is registered — reload the page and pick one again`);

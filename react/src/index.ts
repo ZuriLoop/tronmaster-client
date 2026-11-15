@@ -7,4 +7,4 @@ export type { AccountHook, GaslessAccount } from "./useAccount.js";
 export { useTransfer, explain, validateRecipient, describeFee } from "./useTransfer.js";
 export type { TransferState, TransferPhase, Quoted } from "./useTransfer.js";
 export { connect, detectWallets, onAccountChange, registerWallet } from "./wallet.js";
-export type { Connection, WalletKind, Available, RegisteredWallet } from "./wallet.js";
+export type { Connection, WalletKind, Available, RegisteredWallet, ConnectOptions } from "./wallet.js";
